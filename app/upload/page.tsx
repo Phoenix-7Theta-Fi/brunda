@@ -5,43 +5,42 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ImagePlus } from "lucide-react"
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
+import UploadDatePicker from "@/app/components/upload-date-picker"
+import ManageStrategies from "@/app/components/manage-strategies"
 
-const patternTypes = [
-  "Head and Shoulders",
-  "Inverse Head and Shoulders",
-  "Double Top",
-  "Double Bottom",
-  "Cup and Handle",
-  "Triple Top",
-  "Triple Bottom",
-  "Rectangle Pattern",
-  "Flag Pattern",
-  "Pennant Pattern"
-] as const
-
-const strategyTypes = [
-  "Trend Following",
-  "Mean Reversion",
-  "Breakout Trading",
-  "Momentum Trading",
-  "Counter-Trend",
-  "Support/Resistance",
-  "Gap Trading",
-  "Price Action",
-  "Volume-Based",
-  "Moving Average Strategy"
-] as const
+type Strategy = {
+  _id: string
+  name: string
+  createdAt: string
+}
 
 export default function UploadPage() {
   const [description, setDescription] = useState("")
   const [uploading, setUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [patternType, setPatternType] = useState<typeof patternTypes[number]>(patternTypes[0])
-  const [strategyType, setStrategyType] = useState<typeof strategyTypes[number]>(strategyTypes[0])
+  const [strategies, setStrategies] = useState<Strategy[]>([])
+  const [selectedStrategy, setSelectedStrategy] = useState("")
   const [executed, setExecuted] = useState<boolean>(false)
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
+  const fetchStrategies = async () => {
+    try {
+      const response = await fetch("/api/strategy-types")
+      const data = await response.json()
+      if (response.ok) {
+        setStrategies(data)
+      }
+    } catch (error) {
+      console.error("Error fetching strategies:", error)
+    }
+  }
+
+  useEffect(() => {
+    fetchStrategies()
+  }, [])
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0])
@@ -51,8 +50,8 @@ export default function UploadPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!selectedFile || !patternType || !strategyType) {
-      alert("Please select a file, pattern type, and strategy type")
+    if (!selectedFile || !selectedStrategy || !selectedDate) {
+      alert("Please select a file, strategy type, and date")
       return
     }
 
@@ -60,9 +59,9 @@ export default function UploadPage() {
       setUploading(true)
       const formData = new FormData()
       formData.append('file', selectedFile)
-      formData.append('patternType', patternType)
-      formData.append('strategyType', strategyType)
+      formData.append('strategyType', selectedStrategy)
       formData.append('executed', executed.toString())
+      formData.append('date', selectedDate?.toISOString() || new Date().toISOString())
       if (description) {
         formData.append('description', description)
       }
@@ -78,10 +77,10 @@ export default function UploadPage() {
 
       // Reset form
       setDescription("")
-      setPatternType(patternTypes[0])
-      setStrategyType(strategyTypes[0])
+      setSelectedStrategy("")
       setExecuted(false)
       setSelectedFile(null)
+      setSelectedDate(undefined)
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
@@ -93,6 +92,7 @@ export default function UploadPage() {
       setUploading(false)
     }
   }
+
   return (
     <div className="container mx-auto py-10">
       <Card>
@@ -119,35 +119,33 @@ export default function UploadPage() {
             </div>
             
             <div>
-              <Label htmlFor="patternType">Pattern Type</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="strategyType">Strategy Type</Label>
+                <ManageStrategies onStrategiesUpdate={fetchStrategies} />
+              </div>
               <select
-                id="patternType"
-                value={patternType}
-                onChange={(e) => setPatternType(e.target.value as typeof patternTypes[number])}
+                id="strategyType"
+                value={selectedStrategy}
+                onChange={(e) => setSelectedStrategy(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-2"
               >
-                {patternTypes.map((pattern) => (
-                  <option key={pattern} value={pattern}>
-                    {pattern}
+                <option value="">Select a strategy type</option>
+                {strategies.map((strategy) => (
+                  <option key={strategy._id} value={strategy._id}>
+                    {strategy.name}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <Label htmlFor="strategyType">Strategy Type</Label>
-              <select
-                id="strategyType"
-                value={strategyType}
-                onChange={(e) => setStrategyType(e.target.value as typeof strategyTypes[number])}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-2"
-              >
-                {strategyTypes.map((strategy) => (
-                  <option key={strategy} value={strategy}>
-                    {strategy}
-                  </option>
-                ))}
-              </select>
+              <Label>Chart Date</Label>
+              <div className="mt-2">
+                <UploadDatePicker 
+                  date={selectedDate} 
+                  onSelect={setSelectedDate}
+                />
+              </div>
             </div>
 
             <div>

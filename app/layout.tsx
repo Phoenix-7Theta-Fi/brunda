@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={cn(inter.className)}>
         <div className="border-b">
           <div className="container flex h-14 items-center px-4">
             <nav className="flex items-center space-x-4 lg:space-x-6">

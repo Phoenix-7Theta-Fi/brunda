@@ -6,12 +6,12 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File
-    const patternType = formData.get('patternType') as string
     const strategyType = formData.get('strategyType') as string
     const executed = formData.get('executed') === 'true'
     const description = formData.get('description') as string
+    const date = new Date(formData.get('date') as string)
 
-    if (!file || !patternType || !strategyType) {
+    if (!file || !strategyType) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -29,8 +29,7 @@ export async function POST(req: Request) {
 
     const result = await collection.insertOne({
       image: base64Image,
-      date: new Date(), // Automatic timestamp
-      patternType,
+      date: date, // User selected date
       strategyType,
       executed,
       description: description || null, // Make description optional

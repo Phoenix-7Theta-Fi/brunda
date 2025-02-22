@@ -12,14 +12,22 @@ export async function GET(req: Request) {
     const start = searchParams.get('start')
     const end = searchParams.get('end')
 
-    let query = {}
+    let query: any = {}
     if (start && end) {
-      query = {
-        date: {
-          $gte: new Date(start),
-          $lte: new Date(end)
-        }
+      query.date = {
+        $gte: new Date(start),
+        $lte: new Date(end)
       }
+    }
+
+    const executed = searchParams.get('executed')
+    if (executed !== null) {
+      query.executed = executed === 'true'
+    }
+
+    const strategyType = searchParams.get('strategyType')
+    if (strategyType && strategyType !== 'all') {
+      query.strategyType = strategyType
     }
 
     const charts = await collection
