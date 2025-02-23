@@ -5,7 +5,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format, subDays, startOfDay, endOfDay } from "date-fns"
 import { CalendarIcon, ChevronDownIcon } from "@radix-ui/react-icons"
-import { useState } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { DateRange } from "react-day-picker"
 
 interface DatePickerProps {
@@ -20,8 +20,13 @@ export default function DatePicker({ date, onSelect }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [dateOption, setDateOption] = useState<DateOption>('single')
   const [dateRange, setDateRange] = useState<DateRange | undefined>()
+  const [mounted, setMounted] = useState(false)
 
-  const handleOptionSelect = (option: DateOption) => {
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const handleOptionSelect = useCallback((option: DateOption) => {
     setDateOption(option)
     
     const today = new Date()
@@ -45,9 +50,50 @@ export default function DatePicker({ date, onSelect }: DatePickerProps) {
         onSelect(undefined, undefined)
         break
     }
-  }
+  }, [onSelect, setIsOpen, setDateOption])
 
-  const getButtonText = () => {
+  // Memoize button click handlers
+  const handleToday = useCallback(() => handleOptionSelect('today'), [handleOptionSelect])
+  const handleSevenDays = useCallback(() => handleOptionSelect('7days'), [handleOptionSelect])
+  const handleThirtyDays = useCallback(() => handleOptionSelect('30days'), [handleOptionSelect])
+  const handleCustom = useCallback(() => handleOptionSelect('custom'), [handleOptionSelect])
+
+  const handlePopoverChange = useCallback((open: boolean) => {
+    if (!open) {
+      setDateRange(undefined)
+    }
+    setIsOpen(open)
+  }, [setDateRange, setIsOpen])
+
+  const handleClear = useCallback(() => {
+    onSelect(undefined, undefined)
+    setDateOption('single')
+    setDateRange(undefined)
+  }, [onSelect, setDateOption, setDateRange])
+
+  const handleRangeSelect = useCallback((range: DateRange | undefined) => {
+    if (!range?.from) {
+      setDateRange(undefined)
+      return
+    }
+    if (!range.to) {
+      setDateRange(range)
+      return
+    }
+    onSelect(undefined, { 
+      from: range.from, 
+      to: range.to 
+    })
+    setDateRange(undefined)
+    setIsOpen(false)
+  }, [onSelect, setDateRange, setIsOpen])
+
+  const handleSingleSelect = useCallback((date: Date | undefined) => {
+    onSelect(date)
+    setIsOpen(false)
+  }, [onSelect, setIsOpen])
+
+  const getButtonText = useCallback(() => {
     if (dateOption === 'today') return 'Today'
     if (dateOption === '7days') return 'Last 7 Days'
     if (dateOption === '30days') return 'Last 30 Days'
@@ -66,6 +112,10 @@ export default function DatePicker({ date, onSelect }: DatePickerProps) {
     }
     
     return dateOption === 'custom' ? 'Select date range' : 'Select date'
+  }, [dateOption, dateRange, date])
+
+  if (!mounted) {
+    return null
   }
 
   return (
@@ -74,39 +124,36 @@ export default function DatePicker({ date, onSelect }: DatePickerProps) {
         <Button
           variant="ghost"
           className={`${dateOption === 'today' ? 'bg-muted' : ''}`}
-          onClick={() => handleOptionSelect('today')}
+          onClick={handleToday}
         >
           Today
         </Button>
         <Button
           variant="ghost"
           className={`${dateOption === '7days' ? 'bg-muted' : ''}`}
-          onClick={() => handleOptionSelect('7days')}
+          onClick={handleSevenDays}
         >
           7 Days
         </Button>
         <Button
           variant="ghost"
           className={`${dateOption === '30days' ? 'bg-muted' : ''}`}
-          onClick={() => handleOptionSelect('30days')}
+          onClick={handleThirtyDays}
         >
           30 Days
         </Button>
         <Button
           variant="ghost"
           className={`${dateOption === 'custom' ? 'bg-muted' : ''}`}
-          onClick={() => handleOptionSelect('custom')}
+          onClick={handleCustom}
         >
           Custom
         </Button>
       </div>
 
-      <Popover open={isOpen} onOpenChange={(open) => {
-        if (!open) {
-          setDateRange(undefined)
-        }
-        setIsOpen(open)
-      }}>
+      <Popover 
+        open={isOpen} 
+        onOpenChange={handlePopoverChange}>
         <PopoverTrigger asChild>
           <Button 
             variant="outline" 
@@ -122,22 +169,7 @@ export default function DatePicker({ date, onSelect }: DatePickerProps) {
             <Calendar
               mode="range"
               selected={dateRange}
-              onSelect={(range) => {
-                if (!range?.from) {
-                  setDateRange(undefined)
-                  return
-                }
-                if (!range.to) {
-                  setDateRange(range)
-                  return
-                }
-                onSelect(undefined, { 
-                  from: range.from, 
-                  to: range.to 
-                })
-                setDateRange(undefined)
-                setIsOpen(false)
-              }}
+              onSelect={handleRangeSelect}
               initialFocus
               numberOfMonths={2}
             />
@@ -145,10 +177,7 @@ export default function DatePicker({ date, onSelect }: DatePickerProps) {
             <Calendar
               mode="single"
               selected={date}
-              onSelect={(date) => {
-                onSelect(date)
-                setIsOpen(false)
-              }}
+              onSelect={handleSingleSelect}
               initialFocus
               numberOfMonths={1}
             />
@@ -159,11 +188,7 @@ export default function DatePicker({ date, onSelect }: DatePickerProps) {
       {(date || dateRange) && (
         <Button 
           variant="ghost" 
-          onClick={() => {
-            onSelect(undefined, undefined)
-            setDateOption('single')
-            setDateRange(undefined)
-          }}
+          onClick={handleClear}
           className="text-muted-foreground"
         >
           Clear

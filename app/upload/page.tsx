@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ImagePlus } from "lucide-react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useEffect } from "react"
+import { UploadButton } from "@/app/utils/uploadthing"
 import UploadDatePicker from "@/app/components/upload-date-picker"
 import ManageStrategies from "@/app/components/manage-strategies"
 
@@ -18,12 +18,11 @@ type Strategy = {
 export default function UploadPage() {
   const [description, setDescription] = useState("")
   const [uploading, setUploading] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [fileUrl, setFileUrl] = useState<string>("")
   const [strategies, setStrategies] = useState<Strategy[]>([])
   const [selectedStrategy, setSelectedStrategy] = useState("")
   const [executed, setExecuted] = useState<boolean>(false)
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   
   const fetchStrategies = async () => {
     try {
@@ -41,34 +40,28 @@ export default function UploadPage() {
     fetchStrategies()
   }, [])
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0])
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!selectedFile || !selectedStrategy || !selectedDate) {
-      alert("Please select a file, strategy type, and date")
+    if (!fileUrl || !selectedStrategy || !selectedDate) {
+      alert("Please upload an image, select a strategy type, and date")
       return
     }
 
     try {
       setUploading(true)
-      const formData = new FormData()
-      formData.append('file', selectedFile)
-      formData.append('strategyType', selectedStrategy)
-      formData.append('executed', executed.toString())
-      formData.append('date', selectedDate?.toISOString() || new Date().toISOString())
-      if (description) {
-        formData.append('description', description)
-      }
-
       const response = await fetch("/api/upload", {
         method: "POST",
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageUrl: fileUrl,
+          strategyType: selectedStrategy,
+          executed: executed,
+          date: selectedDate?.toISOString() || new Date().toISOString(),
+          description: description || undefined
+        }),
       })
 
       if (!response.ok) {
@@ -79,11 +72,8 @@ export default function UploadPage() {
       setDescription("")
       setSelectedStrategy("")
       setExecuted(false)
-      setSelectedFile(null)
+      setFileUrl("")
       setSelectedDate(undefined)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
       alert("Chart uploaded successfully!")
     } catch (error) {
       console.error("Upload error:", error)
@@ -105,16 +95,29 @@ export default function UploadPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="image">Chart Image</Label>
+              <Label>Chart Image</Label>
               <div className="mt-2">
-                <Input
-                  ref={fileInputRef}
-                  id="image"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="cursor-pointer"
+                <UploadButton
+                  endpoint="imageUploader"
+                  onClientUploadComplete={(res) => {
+                    if (res?.[0]) {
+                      setFileUrl(res[0].url);
+                      alert("Image uploaded successfully!");
+                    }
+                  }}
+                  onUploadError={(error: Error) => {
+                    alert(`ERROR! ${error.message}`);
+                  }}
                 />
+                {fileUrl && (
+                  <div className="mt-2">
+                    <img 
+                      src={fileUrl} 
+                      alt="Uploaded chart" 
+                      className="max-w-xs rounded-md"
+                    />
+                  </div>
+                )}
               </div>
             </div>
             

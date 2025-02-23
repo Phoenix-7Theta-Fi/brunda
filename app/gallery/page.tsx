@@ -2,13 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Image from "next/image"
-import { startOfDay, endOfDay } from "date-fns"
+import { startOfDay, endOfDay, subDays } from "date-fns"
 import DateFormatter from "@/app/components/date-formatter"
 import DatePicker from "@/app/components/date-picker"
 import ChartTags from "@/app/components/chart-tags"
 import DeleteChart from "@/app/gallery/delete-chart"
 import ChartDescription from "@/app/gallery/chart-description"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { LayoutGrid, Columns, Table2 } from "lucide-react"
@@ -58,25 +58,17 @@ async function getCharts(
   strategyType?: string
 ): Promise<Chart[]> {
   const params = new URLSearchParams()
-  
+
   if (dateRange) {
     const start = startOfDay(dateRange.from)
-    const end = endOfDay(dateRange.to)
+    const end = dateRange.to
+    console.log('Date Range Query:', { start, end })
     params.append('start', start.toISOString())
     params.append('end', end.toISOString())
   } else if (date) {
-    let start = startOfDay(date)
-    let end = endOfDay(date)
-    
-    // If it's today's date, use current time as end
-    const isToday = start.getDate() === new Date().getDate() &&
-                    start.getMonth() === new Date().getMonth() &&
-                    start.getFullYear() === new Date().getFullYear()
-    
-    if (isToday) {
-      end = new Date()
-    }
-    
+    const start = startOfDay(date)
+    const end = endOfDay(date)
+    console.log('Single Date Query:', { start, end })
     params.append('start', start.toISOString())
     params.append('end', end.toISOString())
   }
@@ -90,7 +82,8 @@ async function getCharts(
   }
 
   const url = `${process.env.VERCEL_URL || 'http://localhost:3000'}/api/charts${params.toString() ? `?${params.toString()}` : ''}`
-  
+  console.log('Fetching charts from URL:', url)
+
   const res = await fetch(url, { 
     cache: 'no-store',
     next: { revalidate: 0 }
@@ -101,6 +94,14 @@ async function getCharts(
   }
   
   const { charts } = await res.json()
+  console.log('Fetched charts:', charts.length)
+  if (charts.length > 0) {
+    console.log('Sample chart:', {
+      id: charts[0]._id,
+      date: new Date(charts[0].date),
+      strategyType: charts[0].strategyType
+    })
+  }
   return charts
 }
 
@@ -113,31 +114,63 @@ export default function GalleryPage() {
   const [strategyFilter, setStrategyFilter] = useState<string>('all')
   const [layout, setLayout] = useState<keyof typeof layoutClasses>('standard')
 
+  const fetchCharts = useCallback(
+    async (
+      selectedDate?: Date, 
+      selectedRange?: { from: Date; to: Date }, 
+      selectedExecutionStatus?: string,
+      selectedStrategyType?: string
+    ) => {
+      try {
+        setIsLoading(true)
+        const charts = await getCharts(selectedDate, selectedRange, selectedExecutionStatus, selectedStrategyType)
+        setCharts(charts)
+      } catch (error) {
+        console.error('Error fetching charts:', error)
+        setCharts([])
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [setIsLoading, setCharts]
+  )
+
   useEffect(() => {
-    fetchCharts(undefined)
+    const loadInitialCharts = async () => {
+      // Query from yesterday to now to catch late-night uploads
+      const now = new Date()
+      const yesterday = subDays(now, 1)
+      const yesterdayStart = startOfDay(yesterday)
+      console.log('Initial load - Querying from:', yesterdayStart, 'to:', now)
+      await fetchCharts(undefined, { from: yesterdayStart, to: now })
+    }
+    loadInitialCharts()
+  }, [fetchCharts])
+
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
   }, [])
 
-  const fetchCharts = async (
-    selectedDate?: Date, 
-    selectedRange?: { from: Date; to: Date }, 
-    selectedExecutionStatus?: string,
-    selectedStrategyType?: string
-  ) => {
-    try {
-      setIsLoading(true)
-      const charts = await getCharts(selectedDate, selectedRange, selectedExecutionStatus, selectedStrategyType)
-      setCharts(charts)
-    } catch (error) {
-      console.error('Error fetching charts:', error)
-      setCharts([])
-    } finally {
-      setIsLoading(false)
-    }
+  if (!mounted || (isLoading && charts.length === 0)) {
+    return (
+      <div className="container mx-auto py-10">
+        <div className="text-center">Loading...</div>
+      </div>
+    )
   }
 
   const handleDateSelect = (selectedDate?: Date, selectedRange?: { from: Date; to: Date }) => {
     setDate(selectedDate)
     setDateRange(selectedRange)
+    
+    if (selectedDate) {
+      console.log('Selected single date:', selectedDate)
+    } else if (selectedRange) {
+      console.log('Selected date range:', selectedRange)
+    }
+    
     fetchCharts(selectedDate, selectedRange, executionFilter, strategyFilter)
   }
 
@@ -243,12 +276,16 @@ export default function GalleryPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className={`relative ${layout === 'list' ? 'aspect-[2/1]' : 'aspect-video'} group`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <a href={`/api/images/${chart._id}`} target="_blank" rel="noopener noreferrer">
-                    <img
-                      src={`/api/images/${chart._id}`}
+                  <a href={chart.image} target="_blank" rel="noopener noreferrer">
+                    <Image
+                      src={chart.image}
                       alt="Stock chart"
+                      width={800}
+                      height={500}
                       className="w-full h-full object-cover rounded-md hover:opacity-80 transition-opacity"
+                      placeholder="blur"
+                      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDABQODxIPDRQSEBIXFRQdHx4eHRseHh4eHh4dHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/2wBDAR4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
+                      priority={true}
                     />
                   </a>
                 </div>

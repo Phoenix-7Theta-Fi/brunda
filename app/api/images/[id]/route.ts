@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = params.id
+    const { id } = await Promise.resolve(params)
     
     if (!id) {
       return NextResponse.json(
@@ -29,26 +29,8 @@ export async function GET(
       )
     }
 
-    // Extract the content type and base64 data from the data URL
-    const matches = chart.image.match(/^data:(.+);base64,(.+)$/)
-    if (!matches) {
-      return NextResponse.json(
-        { error: "Invalid image data" },
-        { status: 400 }
-      )
-    }
-
-    const [, contentType, base64Data] = matches
-    const buffer = Buffer.from(base64Data, 'base64')
-
-    // Return the image with proper headers
-    return new NextResponse(buffer, {
-      headers: {
-        'Content-Type': contentType,
-        'Content-Length': buffer.length.toString(),
-        'Cache-Control': 'public, max-age=31536000',
-      },
-    })
+    // Redirect to the uploadthing URL
+    return NextResponse.redirect(chart.image)
   } catch (error) {
     console.error("Fetch image error:", error)
     return NextResponse.json(
