@@ -1,63 +1,49 @@
-import { config } from 'dotenv'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import { Collection, Document, MongoClient } from 'mongodb'
+import { config } from 'dotenv';
+import { MongoClient, Collection } from 'mongodb';
 
-// Get the directory path
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const rootDir = path.resolve(__dirname, '..')
+config();
 
-// Load environment variables from the root directory's .env file
-config({ path: path.join(rootDir, '.env') })
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
 
-const MONGODB_URI = process.env.MONGODB_URI
-if (!MONGODB_URI) {
-  throw new Error('Please define the MONGODB_URI environment variable inside .env')
-}
-
-interface StrategyType extends Document {
+interface StrategyType {
+  _id: string;
   name: string;
 }
 
-interface Chart extends Document {
+interface Chart {
+  _id: string;
   strategyType: string;
 }
 
-const run = async () => {
-  console.log('Connecting to MongoDB...')
-  const client = await MongoClient.connect(MONGODB_URI)
-  
+async function checkStrategyValues() {
   try {
-    const db = client.db("stock-charts")
+    const client = await MongoClient.connect(MONGODB_URI);
+    const db = client.db("stock-charts");
     
     // Check strategy-types collection
-    const strategyTypesCollection: Collection<StrategyType> = db.collection("strategy-types")
-    const strategies = await strategyTypesCollection.find({}).toArray()
-    console.log('\nStrategy Types Collection:')
-    strategies.forEach(s => console.log(`- ${s.name}`))
+    const strategyTypesCollection: Collection<StrategyType> = db.collection("strategy-types");
+    const strategies = await strategyTypesCollection.find({}).toArray();
+    console.log('\nStrategy Types Collection:');
+    strategies.forEach((s: StrategyType) => console.log(`- ${s.name}`));
     
     // Check unique strategy types in charts collection
-    const chartsCollection: Collection<Chart> = db.collection("charts")
-    const uniqueStrategyTypes = await chartsCollection.distinct('strategyType')
-    console.log('\nUnique Strategy Types in Charts:')
-    uniqueStrategyTypes.forEach(s => console.log(`- ${s}`))
+    const chartsCollection: Collection<Chart> = db.collection("charts");
+    const uniqueStrategyTypes = await chartsCollection.distinct('strategyType');
+    console.log('\nUnique Strategy Types in Charts:');
+    uniqueStrategyTypes.forEach((s: string) => console.log(`- ${s}`));
     
     // Find any mismatches
-    const strategyNames = new Set(strategies.map(s => s.name))
-    const mismatches = uniqueStrategyTypes.filter(s => !strategyNames.has(s))
+    const strategyNames = new Set(strategies.map((s: StrategyType) => s.name));
+    const mismatches = uniqueStrategyTypes.filter((s: string) => !strategyNames.has(s));
     if (mismatches.length > 0) {
-      console.log('\nMismatches Found (strategies in charts but not in strategy-types):')
-      mismatches.forEach(s => console.log(`- ${s}`))
+      console.log('\nMismatches Found (strategies in charts but not in strategy-types):');
+      mismatches.forEach((s: string) => console.log(`- ${s}`));
     }
 
+    await client.close();
   } catch (error) {
-    console.error("Error checking strategy values:", error)
-    process.exit(1)
-  } finally {
-    await client.close()
-    console.log('\nConnection closed')
+    console.error("Error checking strategy values:", error);
   }
 }
 
-run()
+checkStrategyValues();
