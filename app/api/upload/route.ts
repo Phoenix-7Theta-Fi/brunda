@@ -5,11 +5,19 @@ import { ObjectId } from "mongodb"
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { imageUrl, strategyType, executed, description, date } = body
+    const { imageUrls, strategyType, stockName, executed, description, date, marketCap } = body
 
-    if (!imageUrl || !strategyType) {
+    if (!imageUrls?.length || !strategyType || !stockName || !marketCap) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 }
+      )
+    }
+
+    // Validate marketCap value
+    if (marketCap !== "small" && marketCap !== "large") {
+      return NextResponse.json(
+        { error: "Invalid market cap value" },
         { status: 400 }
       )
     }
@@ -36,10 +44,12 @@ export async function POST(req: Request) {
     }
 
     const result = await collection.insertOne({
-      image: imageUrl,
+      images: imageUrls,
       date: new Date(parsedDate),
       strategyType,
+      stockName,
       executed,
+      marketCap,
       description: description || null,
       createdAt: new Date(),
     })

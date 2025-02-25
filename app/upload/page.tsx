@@ -8,6 +8,11 @@ import { useState, useEffect } from "react"
 import { UploadButton } from "@/app/utils/uploadthing"
 import UploadDatePicker from "@/app/components/upload-date-picker"
 import ManageStrategies from "@/app/components/manage-strategies"
+import 'swiper/css'
+import 'swiper/css/navigation'
+import 'swiper/css/pagination'
+import { Swiper, SwiperSlide } from 'swiper/react'
+import { Navigation, Pagination } from 'swiper/modules'
 
 type Strategy = {
   _id: string
@@ -17,8 +22,10 @@ type Strategy = {
 
 export default function UploadPage() {
   const [description, setDescription] = useState("")
+  const [stockName, setStockName] = useState("")
+  const [marketCap, setMarketCap] = useState<"small" | "large">("small")
   const [uploading, setUploading] = useState(false)
-  const [fileUrl, setFileUrl] = useState<string>("")
+  const [fileUrls, setFileUrls] = useState<string[]>([])
   const [strategies, setStrategies] = useState<Strategy[]>([])
   const [selectedStrategy, setSelectedStrategy] = useState("")
   const [executed, setExecuted] = useState<boolean>(false)
@@ -43,8 +50,8 @@ export default function UploadPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!fileUrl || !selectedStrategy || !selectedDate) {
-      alert("Please upload an image, select a strategy type, and date")
+    if (fileUrls.length === 0 || !selectedStrategy || !selectedDate || !stockName) {
+      alert("Please upload at least one image, enter stock name, select a strategy type, and date")
       return
     }
 
@@ -56,9 +63,11 @@ export default function UploadPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageUrl: fileUrl,
+          imageUrls: fileUrls,
           strategyType: selectedStrategy,
+          stockName,
           executed: executed,
+          marketCap: marketCap,
           date: selectedDate?.toISOString() || new Date().toISOString(),
           description: description || undefined
         }),
@@ -70,10 +79,12 @@ export default function UploadPage() {
 
       // Reset form
       setDescription("")
+      setStockName("")
       setSelectedStrategy("")
       setExecuted(false)
-      setFileUrl("")
+      setFileUrls([])
       setSelectedDate(undefined)
+      setMarketCap("small")
       alert("Chart uploaded successfully!")
     } catch (error) {
       console.error("Upload error:", error)
@@ -89,33 +100,68 @@ export default function UploadPage() {
         <CardHeader>
           <CardTitle>Upload Stock Chart</CardTitle>
           <CardDescription>
-            Upload your stock chart image with date and description
+            Upload your stock chart images with date and description
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label>Chart Image</Label>
+              <Label htmlFor="stockName">Stock Name</Label>
+              <Input
+                id="stockName"
+                className="mt-2"
+                placeholder="Enter stock name..."
+                value={stockName}
+                onChange={(e) => setStockName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div>
+              <Label>Chart Images</Label>
               <div className="mt-2">
                 <UploadButton
                   endpoint="imageUploader"
                   onClientUploadComplete={(res) => {
-                    if (res?.[0]) {
-                      setFileUrl(res[0].url);
-                      alert("Image uploaded successfully!");
+                    if (res) {
+                      const newUrls = res.map(file => file.url);
+                      setFileUrls(prev => [...prev, ...newUrls]);
+                      alert("Images uploaded successfully!");
                     }
                   }}
                   onUploadError={(error: Error) => {
                     alert(`ERROR! ${error.message}`);
                   }}
                 />
-                {fileUrl && (
-                  <div className="mt-2">
-                    <img 
-                      src={fileUrl} 
-                      alt="Uploaded chart" 
-                      className="max-w-xs rounded-md"
-                    />
+                {fileUrls.length > 0 && (
+                  <div className="mt-4">
+                    <Swiper
+                      modules={[Navigation, Pagination]}
+                      spaceBetween={10}
+                      slidesPerView={1}
+                      navigation
+                      pagination={{ clickable: true }}
+                      className="w-full rounded-lg"
+                    >
+                      {fileUrls.map((url, index) => (
+                        <SwiperSlide key={index}>
+                          <div className="relative">
+                            <img 
+                              src={url} 
+                              alt={`Uploaded chart ${index + 1}`} 
+                              className="w-full rounded-md"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setFileUrls(prev => prev.filter((_, i) => i !== index))}
+                              className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center z-10"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </SwiperSlide>
+                      ))}
+                    </Swiper>
                   </div>
                 )}
               </div>
@@ -148,6 +194,32 @@ export default function UploadPage() {
                   date={selectedDate} 
                   onSelect={setSelectedDate}
                 />
+              </div>
+            </div>
+
+            <div>
+              <Label>Market Cap</Label>
+              <div className="flex gap-4 mt-2">
+                <div className="flex items-center">
+                  <input
+                    type="radio"
+                    id="smallCap"
+                    checked={marketCap === "small"}
+                    onChange={() => setMarketCap("small")}
+                    className="mr-2"
+                  />
+                  <Label htmlFor="smallCap">Small Cap</Label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="radio"
+                    id="largeCap"
+                    checked={marketCap === "large"}
+                    onChange={() => setMarketCap("large")}
+                    className="mr-2"
+                  />
+                  <Label htmlFor="largeCap">Large Cap</Label>
+                </div>
               </div>
             </div>
 

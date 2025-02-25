@@ -2,6 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Swiper styles */
+.swiper-button-next,
+.swiper-button-prev {
+  color: white !important;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 24px 16px;
+  border-radius: 4px;
+}
+
+.swiper-button-next:after,
+.swiper-button-prev:after {
+  font-size: 16px !important;
+}
+
+.swiper-pagination-bullet {
+  background: white !important;
+}
+
+.swiper-pagination-bullet-active {
+  background: white !important;
+}
+
+/* Range Calendar Styles */
+.range-calendar-container {
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.range-calendar .rdp-day_range_start,
+.range-calendar .rdp-day_range_end {
+  background-color: #3b82f6 !important;
+  color: white !important;
+}
+
+.range-calendar .rdp-day_range_middle {
+  background-color: #bfdbfe !important;
+  color: #1e3a8a !important;
+}
+
+.range-calendar .rdp-caption {
+  background-color: #eff6ff;
+  padding: 8px 0;
+}
+
 @layer base {
   :root {
     --background: oklch(1 0 0);
